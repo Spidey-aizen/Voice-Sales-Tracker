@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sales Dashboard</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #0f172a;
+            color: white;
+            text-align: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            background: #22c55e;
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        table {
+            margin: auto;
+            margin-top: 20px;
+            border-collapse: collapse;
+            width: 80%;
+        }
+
+        th, td {
+            border: 1px solid #444;
+            padding: 10px;
+        }
+
+        th {
+            background: #1e293b;
+        }
+
+        #total {
+            font-size: 20px;
+            margin-top: 20px;
+            color: #22c55e;
+        }
+    </style>
+</head>
+<body>
+
+<h1>📊 Sales Dashboard</h1>
+
+<button onclick="startVoice()">🎤 Speak Sale</button>
+
+<p id="status"></p>
+
+<div id="total"></div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Time</th>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Price</th>
+        </tr>
+    </thead>
+    <tbody id="table"></tbody>
+</table>
+
+<script>
+function startVoice() {
+    const rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    rec.lang = "en-IN";
+    rec.start();
+
+    rec.onresult = function(e) {
+        let text = e.results[0][0].transcript;
+
+        document.getElementById("status").innerText = "You said: " + text;
+
+        fetch("http://127.0.0.1:8000/add-sale-text", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(text)
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById("status").innerText += 
+                "\nSaved ✅ " + JSON.stringify(data.data);
+
+            loadData();
+        });
+    };
+}
+
+function loadData() {
+    fetch("http://127.0.0.1:8000/sales")
+    .then(res => res.json())
+    .then(data => {
+        let table = document.getElementById("table");
+        table.innerHTML = "";
+
+        let total = 0;
+
+        data.forEach(row => {
+            let tr = `
+                <tr>
+                    <td>${row.Time}</td>
+                    <td>${row.Product}</td>
+                    <td>${row.Quantity}</td>
+                    <td>${row.Price}</td>
+                </tr>
+            `;
+            table.innerHTML += tr;
+
+            total += row.Price;
+        });
+
+        document.getElementById("total").innerText =
+            "💰 Total Sales: ₹" + total;
+    });
+}
+
+// load on start
+loadData();
+</script>
+
+</body>
+</html>
