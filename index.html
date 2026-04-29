@@ -1,127 +1,535 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Sales Dashboard</title>
-    <style>
-        body {
-            font-family: Arial;
-            background: #0f172a;
-            color: white;
-            text-align: center;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        button {
-            padding: 10px 20px;
-            margin: 10px;
-            background: #22c55e;
-            border: none;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-        }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+      color: #e2e8f0;
+      padding: 24px 16px 48px;
+    }
 
-        table {
-            margin: auto;
-            margin-top: 20px;
-            border-collapse: collapse;
-            width: 80%;
-        }
+    /* ── Layout ─────────────────────────────── */
+    .container { max-width: 960px; margin: 0 auto; }
 
-        th, td {
-            border: 1px solid #444;
-            padding: 10px;
-        }
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 28px;
+      letter-spacing: -0.5px;
+    }
 
-        th {
-            background: #1e293b;
-        }
+    /* ── Glass card ──────────────────────────── */
+    .card {
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
 
-        #total {
-            font-size: 20px;
-            margin-top: 20px;
-            color: #22c55e;
-        }
-    </style>
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #a78bfa;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ── File selector ───────────────────────── */
+    .file-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .file-row input {
+      flex: 1;
+      min-width: 180px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.08);
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .file-row input::placeholder { color: #94a3b8; }
+
+    .file-tag {
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      background: rgba(96,165,250,0.15);
+      border: 1px solid rgba(96,165,250,0.3);
+      border-radius: 20px;
+      color: #60a5fa;
+      white-space: nowrap;
+    }
+
+    /* ── Buttons ─────────────────────────────── */
+    .btn {
+      padding: 10px 22px;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:active { transform: scale(0.96); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      color: white;
+      box-shadow: 0 4px 15px rgba(124,58,237,0.35);
+    }
+
+    .btn-primary:hover { box-shadow: 0 6px 20px rgba(124,58,237,0.5); }
+
+    .btn-green {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: white;
+      box-shadow: 0 4px 15px rgba(16,185,129,0.3);
+    }
+
+    .btn-danger {
+      background: rgba(239,68,68,0.2);
+      border: 1px solid rgba(239,68,68,0.35);
+      color: #fca5a5;
+    }
+
+    /* ── Mic button ──────────────────────────── */
+    .mic-area { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+
+    .mic-btn {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      transition: all 0.3s;
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      box-shadow: 0 0 0 0 rgba(124,58,237,0.5);
+    }
+
+    .mic-btn:hover { transform: scale(1.07); }
+
+    .mic-btn.listening {
+      background: linear-gradient(135deg, #dc2626, #f97316);
+      animation: pulse 1.2s infinite;
+    }
+
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(220,38,38,0.6); }
+      70%  { box-shadow: 0 0 0 18px rgba(220,38,38,0); }
+      100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+    }
+
+    /* ── Status badge ────────────────────────── */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 30px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      min-width: 140px;
+      justify-content: center;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #94a3b8;
+      transition: all 0.3s;
+    }
+
+    .status-badge.listening  { background: rgba(220,38,38,0.15); border-color: rgba(220,38,38,0.4); color: #fca5a5; }
+    .status-badge.processing { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); color: #fcd34d; }
+    .status-badge.saved      { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.4); color: #6ee7b7; }
+    .status-badge.error      { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4);  color: #fca5a5; }
+
+    /* ── Recognized text ─────────────────────── */
+    .recognized-box {
+      width: 100%;
+      min-height: 44px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px dashed rgba(255,255,255,0.15);
+      font-size: 0.95rem;
+      color: #cbd5e1;
+      text-align: center;
+      font-style: italic;
+    }
+
+    /* ── Stats row ───────────────────────────── */
+    .stats-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      flex: 1;
+      min-width: 130px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 16px 20px;
+      text-align: center;
+    }
+
+    .stat-card .label { font-size: 0.75rem; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; }
+    .stat-card .value { font-size: 1.6rem; font-weight: 700; }
+    .stat-card.total .value { background: linear-gradient(90deg,#a78bfa,#60a5fa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .stat-card.count .value { color: #34d399; }
+
+    /* ── Table ───────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+
+    thead th {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #a78bfa;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      transition: background 0.15s;
+    }
+
+    tbody tr:hover { background: rgba(255,255,255,0.05); }
+
+    tbody td { padding: 12px 16px; color: #cbd5e1; }
+
+    .badge-product {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      background: rgba(124,58,237,0.2);
+      border: 1px solid rgba(124,58,237,0.35);
+      color: #c4b5fd;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .empty-state { text-align: center; color: #475569; padding: 32px; font-size: 0.95rem; }
+
+    /* ── Dashboard header ────────────────────── */
+    .dash-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .dash-header h2 { margin: 0; }
+
+    .refresh-info { font-size: 0.75rem; color: #475569; }
+
+    /* ── Toast ───────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      z-index: 999;
+    }
+
+    #toast.show { opacity: 1; }
+    #toast.success { background: rgba(16,185,129,0.9); color: white; }
+    #toast.error   { background: rgba(239,68,68,0.9);  color: white; }
+  </style>
 </head>
 <body>
+<div class="container">
+  <h1>📊 Sales Dashboard</h1>
 
-<h1>📊 Sales Dashboard</h1>
+  <!-- File selector -->
+  <div class="card">
+    <h2>📁 Excel File</h2>
+    <div class="file-row">
+      <input id="fileInput" type="text" placeholder="e.g. shop_sales or my_store.xlsx" />
+      <button class="btn btn-primary" onclick="setFile()">Set File</button>
+      <span class="file-tag" id="currentFile">Loading…</span>
+    </div>
+  </div>
 
-<button onclick="startVoice()">🎤 Speak Sale</button>
+  <!-- Voice input -->
+  <div class="card">
+    <h2>🎙️ Voice Input</h2>
+    <div class="mic-area">
+      <button class="mic-btn" id="micBtn" onclick="toggleVoice()" title="Click to speak">🎤</button>
+      <div class="status-badge" id="statusBadge">⏸ Ready</div>
+      <div class="recognized-box" id="recognizedText">Your speech will appear here…</div>
+    </div>
+  </div>
 
-<p id="status"></p>
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card total">
+      <div class="label">Total Sales</div>
+      <div class="value" id="totalSales">₹0</div>
+    </div>
+    <div class="stat-card count">
+      <div class="label">Transactions</div>
+      <div class="value" id="totalCount">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Avg Sale</div>
+      <div class="value" id="avgSale" style="color:#f472b6">₹0</div>
+    </div>
+  </div>
 
-<div id="total"></div>
-
-<table>
-    <thead>
-        <tr>
+  <!-- Table -->
+  <div class="card">
+    <div class="dash-header">
+      <h2>📋 Sales Records</h2>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span class="refresh-info" id="lastRefresh">–</span>
+        <button class="btn btn-green" onclick="loadData()">↻ Refresh</button>
+        <button class="btn btn-danger" onclick="clearSales()">🗑 Clear</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
             <th>Time</th>
             <th>Product</th>
             <th>Qty</th>
-            <th>Price</th>
-        </tr>
-    </thead>
-    <tbody id="table"></tbody>
-</table>
+            <th>Price (₹)</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none">No sales yet. Try speaking a sale!</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
 
 <script>
-function startVoice() {
-    const rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    rec.lang = "en-IN";
-    rec.start();
+  const API = "http://127.0.0.1:8000";
+  let isListening = false;
+  let recognition = null;
+  let refreshTimer = null;
 
-    rec.onresult = function(e) {
-        let text = e.results[0][0].transcript;
+  // ── Status helpers ──────────────────────────────────
+  function setStatus(state, text) {
+    const badge = document.getElementById("statusBadge");
+    badge.className = "status-badge " + state;
+    const icons = { listening: "🔴", processing: "⏳", saved: "✅", error: "❌", "": "⏸" };
+    badge.textContent = (icons[state] || "⏸") + " " + text;
+  }
 
-        document.getElementById("status").innerText = "You said: " + text;
+  function showToast(msg, type = "success") {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = "show " + type;
+    setTimeout(() => t.className = "", 3000);
+  }
 
-        fetch("http://127.0.0.1:8000/add-sale-text", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(text)
-        })
-        .then(res => res.json())
-        .then(data => {
-            document.getElementById("status").innerText += 
-                "\nSaved ✅ " + JSON.stringify(data.data);
+  // ── File management ─────────────────────────────────
+  async function loadCurrentFile() {
+    try {
+      const r = await fetch(API + "/current-file");
+      const d = await r.json();
+      document.getElementById("currentFile").textContent = "📄 " + d.filename;
+    } catch { document.getElementById("currentFile").textContent = "⚠️ Backend offline"; }
+  }
 
-            loadData();
+  async function setFile() {
+    const name = document.getElementById("fileInput").value.trim();
+    if (!name) { showToast("Enter a filename", "error"); return; }
+    try {
+      const r = await fetch(API + "/set-file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: name })
+      });
+      const d = await r.json();
+      document.getElementById("currentFile").textContent = "📄 " + d.filename;
+      document.getElementById("fileInput").value = "";
+      showToast(d.created ? "New file will be created: " + d.filename : "Switched to: " + d.filename);
+      loadData();
+    } catch { showToast("Cannot connect to backend", "error"); }
+  }
+
+  // ── Voice input ─────────────────────────────────────
+  function toggleVoice() {
+    if (isListening) {
+      recognition && recognition.stop();
+      return;
+    }
+    startVoice();
+  }
+
+  function startVoice() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showToast("Speech recognition not supported in this browser", "error");
+      return;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.lang = "en-IN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    isListening = true;
+    document.getElementById("micBtn").classList.add("listening");
+    document.getElementById("micBtn").textContent = "🔴";
+    setStatus("listening", "Listening…");
+    document.getElementById("recognizedText").textContent = "Speak now…";
+
+    recognition.onresult = async function (e) {
+      const text = e.results[0][0].transcript;
+      document.getElementById("recognizedText").textContent = `"${text}"`;
+      setStatus("processing", "Processing…");
+
+      try {
+        const r = await fetch(API + "/add-sale-text", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
         });
+
+        if (!r.ok) {
+          const err = await r.json();
+          throw new Error(err.detail || "Server error");
+        }
+
+        const d = await r.json();
+        setStatus("saved", "Saved!");
+        showToast(`✅ ${d.data.product} × ${d.data.quantity} = ₹${d.data.price}`);
+        loadData();
+      } catch (err) {
+        setStatus("error", "Error");
+        showToast(err.message || "Failed to save", "error");
+      }
     };
-}
 
-function loadData() {
-    fetch("http://127.0.0.1:8000/sales")
-    .then(res => res.json())
-    .then(data => {
-        let table = document.getElementById("table");
-        table.innerHTML = "";
+    recognition.onerror = function (e) {
+      setStatus("error", "Mic error: " + e.error);
+      showToast("Mic error: " + e.error, "error");
+      resetMic();
+    };
 
-        let total = 0;
+    recognition.onend = function () {
+      resetMic();
+    };
 
-        data.forEach(row => {
-            let tr = `
-                <tr>
-                    <td>${row.Time}</td>
-                    <td>${row.Product}</td>
-                    <td>${row.Quantity}</td>
-                    <td>${row.Price}</td>
-                </tr>
-            `;
-            table.innerHTML += tr;
+    recognition.start();
+  }
 
-            total += row.Price;
-        });
+  function resetMic() {
+    isListening = false;
+    const btn = document.getElementById("micBtn");
+    btn.classList.remove("listening");
+    btn.textContent = "🎤";
+  }
 
-        document.getElementById("total").innerText =
-            "💰 Total Sales: ₹" + total;
-    });
-}
+  // ── Data loading ────────────────────────────────────
+  async function loadData() {
+    try {
+      const r = await fetch(API + "/sales");
+      const data = await r.json();
 
-// load on start
-loadData();
+      const tbody = document.getElementById("tableBody");
+      const empty = document.getElementById("emptyState");
+      tbody.innerHTML = "";
+
+      if (!data.length) {
+        empty.style.display = "block";
+        updateStats([], 0);
+        return;
+      }
+
+      empty.style.display = "none";
+      let total = 0;
+
+      data.forEach((row, i) => {
+        total += Number(row.Price) || 0;
+        tbody.innerHTML += `
+          <tr>
+            <td style="color:#475569">${i + 1}</td>
+            <td style="font-size:0.82rem;color:#64748b">${row.Time || "–"}</td>
+            <td><span class="badge-product">${row.Product || "–"}</span></td>
+            <td style="color:#34d399;font-weight:600">${row.Quantity ?? "–"}</td>
+            <td style="color:#f8fafc;font-weight:600">₹${Number(row.Price).toFixed(2)}</td>
+          </tr>`;
+      });
+
+      updateStats(data, total);
+      document.getElementById("lastRefresh").textContent =
+        "Updated " + new Date().toLocaleTimeString();
+    } catch {
+      document.getElementById("lastRefresh").textContent = "⚠️ Backend offline";
+    }
+  }
+
+  function updateStats(data, total) {
+    document.getElementById("totalSales").textContent = "₹" + total.toFixed(2);
+    document.getElementById("totalCount").textContent = data.length;
+    document.getElementById("avgSale").textContent =
+      data.length ? "₹" + (total / data.length).toFixed(2) : "₹0";
+  }
+
+  async function clearSales() {
+    if (!confirm("Clear all sales? This deletes the Excel file.")) return;
+    try {
+      await fetch(API + "/clear-sales", { method: "DELETE" });
+      showToast("Sales cleared");
+      loadData();
+    } catch { showToast("Failed to clear", "error"); }
+  }
+
+  // ── Auto-refresh every 30s ──────────────────────────
+  function startAutoRefresh() {
+    refreshTimer = setInterval(loadData, 30000);
+  }
+
+  // ── Init ────────────────────────────────────────────
+  loadCurrentFile();
+  loadData();
+  startAutoRefresh();
 </script>
-
 </body>
 </html>

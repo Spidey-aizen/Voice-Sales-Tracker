@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Body
-from pydantic import BaseModel
+from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import pandas as pd
 from datetime import datetime
 import os
@@ -9,6 +9,8 @@ import json
 import re
 
 app = FastAPI()
+
+# ✅ CORS - allow all origins (dev mode)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,7 +19,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-FILE_NAME = "sales.xlsx"
+# ── State ──────────────────────────────────────────────
+FILE_NAME = "sales.xlsx"  # default; can be changed via API
+
 
 class Sale(BaseModel):
     product: str
@@ -25,182 +29,159 @@ class Sale(BaseModel):
     price: float
 
 
-# ✅ Save to Excel safely
-def save_to_excel(data):
+class FileRequest(BaseModel):
+    filename: str
+
+
+# ── Excel helpers ───────────────────────────────────────
+
+def get_filepath():
+    return FILE_NAME
+
+
+def save_to_excel(data: Sale):
     new_row = {
         "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "Product": data.product,
+        "Product": data.product.capitalize(),
         "Quantity": data.quantity,
-        "Price": data.price
+        "Price": data.price,
     }
-
+    path = get_filepath()
     try:
-        if os.path.exists(FILE_NAME):
-            df = pd.read_excel(FILE_NAME, engine="openpyxl")
+        if os.path.exists(path):
+            df = pd.read_excel(path, engine="openpyxl")
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         else:
             df = pd.DataFrame([new_row])
-
-        df.to_excel(FILE_NAME, index=False)
-
+        df.to_excel(path, index=False, engine="openpyxl")
     except PermissionError:
-        print("❌ Close Excel file (sales.xlsx) and try again")
-def word_to_number(text):
-    words = {
-        "one": "1", "two": "2", "three": "3",
-        "four": "4", "five": "5", "six": "6",
-        "seven": "7", "eight": "8", "nine": "9",
-        "ten": "10"
-    }
+        raise HTTPException(status_code=423, detail="Close the Excel file and try again.")
 
-    for word, num in words.items():
-        text = re.sub(rf"\b{word}\b", num, text)
 
+# ── Text parsing ────────────────────────────────────────
+
+WORD_NUMS = {
+    "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+    "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+    "eleven": "11", "twelve": "12", "fifteen": "15", "twenty": "20",
+    "fifty": "50", "hundred": "100",
+}
+
+
+def word_to_number(text: str) -> str:
+    for word, num in WORD_NUMS.items():
+        text = re.sub(rf"\b{word}\b", num, text, flags=re.IGNORECASE)
     return text
 
-# 🔥 AI PARSER (CLEAN + FIXED)
-def parse_text_ai(text):
-    prompt = f"""
-Extract product, quantity and total price.
 
-STRICT:
-- Only JSON
-- No explanation
+def parse_text_ai(text: str) -> dict:
+    prompt = f"""Extract product, quantity and total price from this sales statement.
+Return ONLY valid JSON, nothing else.
 
 Example:
 Input: sold 2 apples for 100 rupees
-Output:
-{{"product":"apples","quantity":2,"price":100}}
+Output: {{"product":"apples","quantity":2,"price":100}}
 
-Now:
+Now parse:
 {text}
 """
-
     try:
         response = requests.post(
             "http://localhost:11434/api/generate",
-            json={
-                "model": "mistral",
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0}
-            },
-            timeout=10
+            json={"model": "mistral", "prompt": prompt, "stream": False,
+                  "options": {"temperature": 0}},
+            timeout=10,
         )
-
-        result = response.json()["response"]
-        print("RAW AI:", result)
-
-        match = re.search(r'\{.*\}', result, re.DOTALL)
-
+        result = response.json().get("response", "")
+        match = re.search(r"\{.*\}", result, re.DOTALL)
         if match:
             data = json.loads(match.group())
-
-            if data.get("product"):
+            if data.get("product") and data.get("quantity") is not None:
                 return data
-
     except Exception as e:
-        print("AI FAILED:", e)
+        print("AI parse failed:", e)
 
-    # 🔥 FALLBACK (VERY IMPORTANT)
-    print("⚠️ Using fallback parser")
+    # ── Fallback regex parser ──
+    print("⚠️  Using fallback parser")
+    numbers = re.findall(r"\d+(?:\.\d+)?", text)
+    quantity = int(float(numbers[0])) if len(numbers) > 0 else 1
+    price = float(numbers[1]) if len(numbers) > 1 else 0.0
 
-    numbers = re.findall(r'\d+', text)
-
-    quantity = int(numbers[0]) if len(numbers) > 0 else 1
-    price = float(numbers[1]) if len(numbers) > 1 else 0
-
-    words = text.lower().split()
+    stop = {"sold", "for", "rupees", "rs", "₹", "i", "bro", "the", "a", "at"}
     product = "unknown"
+    for word in text.lower().split():
+        clean = re.sub(r"[^a-z]", "", word)
+        if clean and clean not in stop and not clean.isdigit():
+            product = clean
+            break
 
-    for word in words:
-        if word not in ["sold", "for", "rupees", "rs", "bro", "i"]:
-            if not word.isdigit():
-                product = word
-                break
-
-    return {
-        "product": product,
-        "quantity": quantity,
-        "price": price
-    }
-    try:
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={
-                "model": "mistral",
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0
-                }
-            },
-            timeout=20
-        )
-
-        result = response.json()["response"]
-        print("RAW AI:", result)
-
-        # ✅ Extract JSON block safely
-        match = re.search(r'\{.*\}', result, re.DOTALL)
-
-        if match:
-            data = json.loads(match.group())
-
-            # 🔥 CLEAN PRODUCT NAME (IMPORTANT FIX)
-            product = data.get("product", "unknown")
-
-            # remove unwanted words
-            product = re.sub(r'(product|name|is|the)', '', product)
-
-            # remove symbols
-            product = re.sub(r'[^a-zA-Z ]', '', product)
-
-            product = product.strip()
-
-            # take only first word
-            product = product.split()[0] if product else "unknown"
-
-            data["product"] = product.lower()
-
-            return data
-
-    except Exception as e:
-        print("AI ERROR:", e)
-
-    return {"product": "unknown", "quantity": 0, "price": 0}
+    return {"product": product, "quantity": quantity, "price": price}
 
 
-# ✅ Manual API
+# ── Routes ──────────────────────────────────────────────
+
+@app.get("/")
+def root():
+    return {"status": "Sales API running"}
+
+
+@app.get("/current-file")
+def current_file():
+    return {"filename": FILE_NAME, "exists": os.path.exists(FILE_NAME)}
+
+
+@app.post("/set-file")
+def set_file(req: FileRequest):
+    global FILE_NAME
+    name = req.filename.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Filename cannot be empty.")
+    if not name.endswith(".xlsx"):
+        name += ".xlsx"
+    FILE_NAME = name
+    return {"filename": FILE_NAME, "created": not os.path.exists(FILE_NAME)}
+
+
 @app.post("/add-sale")
 def add_sale(sale: Sale):
     save_to_excel(sale)
-    return {"message": "Sale added successfully"}
+    return {"message": "Sale added", "data": sale.dict()}
 
 
-# 🔥 Text → AI → Excel
 @app.post("/add-sale-text")
-def add_sale_text(text: str = Body(...)):
-    text = word_to_number(text)
-    parsed = parse_text_ai(text)
+def add_sale_text(body: dict = Body(...)):
+    raw_text = body.get("text", "")
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="'text' field is required.")
 
-    print("FINAL PARSED:", parsed)
+    text = word_to_number(raw_text)
+    parsed = parse_text_ai(text)
+    print("PARSED:", parsed)
 
     sale = Sale(
-        product=parsed["product"],
-        quantity=parsed["quantity"],
-        price=parsed["price"]
+        product=parsed.get("product", "unknown"),
+        quantity=int(parsed.get("quantity", 1)),
+        price=float(parsed.get("price", 0)),
     )
-
     save_to_excel(sale)
+    return {"message": "Parsed and saved", "data": sale.dict()}
 
-    return {
-        "message": "Parsed and saved",
-        "data": parsed
-    }
+
 @app.get("/sales")
 def get_sales():
-    if os.path.exists(FILE_NAME):
-        df = pd.read_excel(FILE_NAME, engine="openpyxl")
-        return df.to_dict(orient="records")
-    return []
+    path = get_filepath()
+    if not os.path.exists(path):
+        return []
+    try:
+        df = pd.read_excel(path, engine="openpyxl")
+        return df.fillna("").to_dict(orient="records")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/clear-sales")
+def clear_sales():
+    path = get_filepath()
+    if os.path.exists(path):
+        os.remove(path)
+    return {"message": "Sales cleared"}
